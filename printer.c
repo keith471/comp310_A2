@@ -55,7 +55,7 @@ int init_shared_memory(int size) {
  * Prints a message indicating a print job has begun
  */
 void print_a_message(Job* job, int index) {
-    printf("Printer started job from print_queue[%d] for client %d. %d pages to print.", index, job->client_id, job->duration);
+    printf("Printer started job from print_queue[%d] for client %d. %d pages to print.\n", index, job->client_id, job->duration);
 }
 
 /**
@@ -68,7 +68,8 @@ void take_a_job(Job* job, int size) {
     sem_wait(&shared_mem->queue_full);  // Wait for an element to be in the queue
     sem_wait(&shared_mem->queue_available); // Attempts to decrement the semaphore. If >0, proceeds. Else blocks until >0.
     printf("6\n");
-    memcpy(&shared_mem->print_queue[shared_mem->next_index_to_run], job, sizeof(Job));  // Remove the job that was added to the queue the earliest
+    printf("%d\n", shared_mem->print_queue[0].client_id);
+    //memcpy(&shared_mem->print_queue[shared_mem->next_index_to_run], job, sizeof(Job));  // Remove the job that was added to the queue the earliest
     printf("7\n");
     print_a_message(job, shared_mem->next_index_to_run);
     printf("8\n");
@@ -127,7 +128,9 @@ int main(int argc, char* argv[]) {
     init_shared_memory(queue_size);
     printf("5\n");
 
-    Job* job;
+    Job* job = malloc(sizeof(job));
+    job->client_id = 1000;
+    job->duration = 10;
 
     while (1) {
         take_a_job(job, queue_size);

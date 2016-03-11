@@ -39,7 +39,7 @@ Job* create_job(int client_id, int duration) {
  * Prints information regarding job added by client
  */
 void print_job(Job* job, int index) {
-    printf("Client %d has %d pages to print. Request placed in printer_queue[%d]", job->client_id, job->duration, index);
+    printf("Client %d has %d pages to print. Request placed in printer_queue[%d]\n", job->client_id, job->duration, index);
 }
 
 /**
