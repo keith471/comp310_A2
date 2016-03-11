@@ -1,0 +1,5 @@
+2. What is -lrt for? My computer can't find that library and things seem to run fine without it.
+3. Why do we have place_params in the client? Shouldn't the printer place the job queue and semaphore in the shared memory when it creates it?
+4. What is a "handle"? A pointer?
+5. How to declare an array of unknown size? It appears I can't anyway for the struct, but for my own curiosity, how would you?
+6. How should I handle the buffer of unknown size?
