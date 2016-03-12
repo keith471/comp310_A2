@@ -13,7 +13,7 @@ In another terminal, run as many clients as you'd like: `./client *duration*` wh
 
 ## Example traces
 ### Shows printing of one job
-> ./printer 3
+$ ./printer 3
 No jobs in queue. Printer awaiting jobs...
 Client 1 has 5 pages to print. Request placed in printer_queue[0]
 Printer waking up...
@@ -22,7 +22,7 @@ Printer successfully printed 5 pages for client 1.
 No jobs in queue. Printer awaiting jobs...
 
 ### Shows filling the buffer
-> ./printer 3
+$ ./printer 3
 No jobs in queue. Printer awaiting jobs...
 Client 2 has 6 pages to print. Request placed in printer_queue[1]
 Printer waking up...
@@ -37,7 +37,7 @@ Printer successfully printed 8 pages for client 4.
 No jobs in queue. Printer awaiting jobs...
 
 ### Shows buffer overflow
-> ./printer 3
+$ ./printer 3
 No jobs in queue. Printer awaiting jobs...
 Client 5 has 20 pages to print. Request placed in printer_queue[1]
 Printer waking up...
