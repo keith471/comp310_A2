@@ -1,10 +1,13 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <signal.h>
 #include <string.h> // for memcpy
+#include <errno.h>
 #include "common.h"
 
 int fd;
 Shared* shared_mem;
+Job* job;
 
 // Open the shared memory already created by the printer
 int setup_shared_memory(){
@@ -30,9 +33,10 @@ int attach_shared_memory(){
  * Create the job record
  */
 Job* create_job(int client_id, int duration) {
-    Job* job = (Job*) malloc(sizeof(Job));
+    job = (Job*) malloc(sizeof(Job));
     job->client_id = client_id; // Recall we access a member of a struct referenced by a pointer with ->
     job->duration = duration;
+    return job;
 }
 
 /**
@@ -47,7 +51,13 @@ void print_job(Job* job, int index) {
  * This is the producer routine of the producer-consumer problem.
  */
 void put_a_job(Job* job) {
-    sem_wait(&shared_mem->queue_empty); // Wait for available slot
+    errno = 0; 	// Reset errno since sem_trywait may set it
+    sem_trywait(&shared_mem->queue_empty); // Wait for available slot
+    if (errno == EAGAIN) {
+        printf("Print queue is full. Client %d waiting on an opening...\n", job->client_id);
+        sem_wait(&shared_mem->queue_empty);
+        printf("Client %d waking up...\n", job->client_id);
+    }
     sem_wait(&shared_mem->queue_available); // Wait for queue to be available
     // We need to copy over memory to the next available slot in the array. We get this with &shared_mem->next_free_index
     memcpy(&shared_mem->print_queue[shared_mem->next_free_index], job, sizeof(Job));  // Copy over memory
@@ -58,12 +68,17 @@ void put_a_job(Job* job) {
 }
 
 /**
- * Release the shared memory
+ * Free job and release the shared memory
  */
-void release_shared_memory() {
-
+void clean_up() {
+    free(job);
+    munmap(shared_mem, sizeof(Shared));
 }
 
+/**
+ * Check input parameters for validity
+ * If valid, return the duration of the job. Else, return -1
+ */
 int check_params(int count, char* args[]) {
     if (count != 2) {
         return -1;
@@ -79,6 +94,24 @@ int check_params(int count, char* args[]) {
 }
 
 /**
+ * Free job, release shared memory and exit program if user types CTRL C
+ */
+void clean_up_and_exit() {
+    printf("\nCleaning up\n");
+    clean_up();
+    printf("Exiting...\n");
+    exit(EXIT_SUCCESS);
+}
+
+/**
+ * Handle CTRL-C
+ */
+void handle_SIGINT(int sig) {
+    signal(SIGTSTP, handle_SIGINT);
+    clean_up_and_exit();
+}
+
+/**
  * Client's task:
  * 1. Start a client, job duration as a command line parameter
  * 2. Get the client ID by incrementing the current client ID in shared memory
@@ -88,6 +121,10 @@ int check_params(int count, char* args[]) {
  *    - If no space in job queue, wait until space becomes free
  */
 int main(int argc, char* argv[]) {
+    // Signal handling
+    void handle_SIGINT(int);
+    signal(SIGINT, handle_SIGINT);
+
     int duration = check_params(argc, argv);
     if (duration == -1) {
         printf("Invalid input parameter: Please enter the duration of the job.\n");
@@ -107,6 +144,8 @@ int main(int argc, char* argv[]) {
 
     Job* job = create_job(client_id, duration);
     put_a_job(job);
+    
+    clean_up();
 
     return 0;
 }

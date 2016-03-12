@@ -1,12 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <signal.h>
 #include <string.h>
 #include "common.h"
 #include <unistd.h>
+#include <errno.h>
 
 int fd;
-int errno;
 Shared* shared_mem;
+Job* job;
 
 // Create a new shared memory object
 int setup_shared_memory(){
@@ -65,14 +67,18 @@ void print_a_message(Job* job, int index) {
  */
 void take_a_job(Job* job, int size) {
     // Begin critical section
-    sem_wait(&shared_mem->queue_full);  // Wait for an element to be in the queue
+    errno = 0; 	// Reset errno since sem_trywait may set it
+    sem_trywait(&shared_mem->queue_full);  // Wait for an element to be in the queue
+    if (errno == EAGAIN) {
+        // sem_trywait could not immidiately decrement the semaphore, i.e. it should block
+        printf("No jobs in queue. Printer awaiting jobs...\n");
+        sem_wait(&shared_mem->queue_full);
+        printf("Printer waking up...\n");
+    }
     sem_wait(&shared_mem->queue_available); // Attempts to decrement the semaphore. If >0, proceeds. Else blocks until >0.
-    printf("6\n");
-    printf("%d\n", shared_mem->print_queue[0].client_id);
-    //memcpy(&shared_mem->print_queue[shared_mem->next_index_to_run], job, sizeof(Job));  // Remove the job that was added to the queue the earliest
-    printf("7\n");
+    //printf("%d\n", shared_mem->print_queue[0].client_id);
+    memcpy(job, &shared_mem->print_queue[shared_mem->next_index_to_run], sizeof(Job));  // Remove the job that was added to the queue the earliest
     print_a_message(job, shared_mem->next_index_to_run);
-    printf("8\n");
     shared_mem->next_index_to_run = (shared_mem->next_index_to_run + 1) % size;  // Update next_index_to_run
 
     sem_post(&shared_mem->queue_available); // Unlock the semaphore by incrementing its value
@@ -105,6 +111,22 @@ int check_params(int count, char* args[]) {
     }
 }
 
+void clean_up_and_exit() {
+    printf("\nCleaning up...\n");
+    free(job);
+    munmap(shared_mem, sizeof(Shared));
+    printf("Exiting...\n");
+    exit(EXIT_SUCCESS);
+}
+
+/**
+ * Handle CTRL-C
+ */
+void handle_SIGINT(int sig) {
+    signal(SIGTSTP, handle_SIGINT);
+    clean_up_and_exit();
+}
+
 /**
  * Printer's task:
  * 1. Start the printer and pass the number of slots in shared memory, along with any other parameters
@@ -114,30 +136,25 @@ int check_params(int count, char* args[]) {
  *    - Else, wait
  */
 int main(int argc, char* argv[]) {
-    printf("1\n");
+    // Signal handling
+    void handle_SIGINT(int);
+    signal(SIGINT, handle_SIGINT);
+
     int queue_size = check_params(argc, argv);
-    printf("2\n");
     if (queue_size == -1) {
         printf("Invalid input parameter: Please enter the size of the printer queue.\n");
         return EXIT_FAILURE;
     }
     setup_shared_memory();
-    printf("3\n");
     attach_shared_memory();
-    printf("4\n");
     init_shared_memory(queue_size);
-    printf("5\n");
 
-    Job* job = malloc(sizeof(job));
-    job->client_id = 1000;
-    job->duration = 10;
+    job = malloc(sizeof(job));
 
     while (1) {
         take_a_job(job, queue_size);
-        printf("after take_a_job\n");
         go_sleep(job);
-        printf("7\n");
-        printf("Printer succesfully printed %d pages for client %d.", job->duration, job->client_id);
+        printf("Printer successfully printed %d pages for client %d.\n", job->duration, job->client_id);
     }
 
     return 0;
